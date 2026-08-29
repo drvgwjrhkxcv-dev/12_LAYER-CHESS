@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>12평면체스 온라인</title>
+    <style>
+        body { font-family: 'Malgun Gothic', sans-serif; background: #1e1e24; color: #fff; margin: 0; padding: 20px; }
+        .container { max-width: 1100px; margin: 0 auto; display: flex; gap: 20px; }
+        #auth-panel, #lobby-panel { background: #2a2a35; padding: 20px; border-radius: 12px; border: 1px solid #3a3a4a; margin-bottom: 20px; text-align: center; }
+        #game-area { display: none; width: 100%; }
+        .main-layout { display: flex; gap: 25px; width: 100%; }
+        .board-side { flex: 2; }
+        .panel-side { flex: 1; background: #2a2a35; padding: 20px; border-radius: 12px; height: fit-content; }
+        input[type="text"], input[type="password"] { padding: 10px; width: 200px; border-radius: 6px; border: 1px solid #444; background: #111; color: white; margin: 5px; }
+        button { padding: 10px 18px; border-radius: 6px; border: none; background: #5865f2; color: white; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:hover { background: #4752c4; }
+        #tabs { display: flex; gap: 5px; margin-bottom: 12px; flex-wrap: wrap; }
+        .tab-btn { background: #3a3a4a; color: white; border: 1px solid #444; padding: 8px 12px; cursor: pointer; border-radius: 4px; font-weight: bold; }
+        .tab-btn.active { background: #5865f2; border-color: #5865f2; }
+        .tab-btn.done { border-color: #2ecc71; }
+        .tab-btn.locked { background: #111; color: #555; cursor: not-allowed; }
+        .chess-board { display: grid; grid-template-columns: repeat(8, 65px); grid-template-rows: repeat(8, 65px); border: 5px solid #3a3a4a; background: #111; margin: 0 auto; }
+        .cell { width: 65px; height: 65px; display: flex; justify-content: center; align-items: center; font-size: 11px; font-weight: bold; cursor: pointer; position: relative; user-select: none; }
+        .light { background: #eadeca; color: #222; }
+        .dark { background: #769656; color: #fff; }
+        .cell.selected { background: #fff44f !important; }
+        .cell.highlight { background: #ff9f43 !important; border-radius: 50%; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }
+        .cell.forge-highlight { background: #9b59b6 !important; color: white; }
+        .piece { text-align: center; line-height: 1.2; text-shadow: 1px 1px 2px rgba(0,0,0,0.8); }
+        .player-tag { font-size: 1.1em; background: #111; padding: 8px; border-radius: 6px; margin: 8px 0; border-left: 4px solid #5865f2; }
+        .sc-box { padding: 8px; margin: 4px; border-radius: 4px; display: inline-block; font-size: 0.85em; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <!-- 1. 로그인 세션 인증 패널 -->
+    <div id="auth-panel">
+        <h2>🔐 12평면체스 대국소 로그인</h2>
+        <p style="font-size: 0.85em; color: #aaa;">테스트 계정: GJKJKA (비번: chess12) 또는 player1, player2 (비번: 1234)</p>
+        <input type="text" id="username" placeholder="아이디">
+        <input type="password" id="password" placeholder="비밀번호">
+        <button onclick="login()">로그인</button>
+    </div>
+
+    <!-- 2. 온라인 멀티플레이 대국 로비 패널 -->
+    <div id="lobby-panel" style="display:none;">
+        <h2>🌐 대국 로비 시스템</h2>
+        <p>환영합니다, <span id="user-display" style="color:#5865f2; font-weight:bold;"></span>님! | <button onclick="logout()" style="padding:4px 10px; background:#444;">로그아웃</button></p>
+        <div style="margin: 20px 0;">
+            <input type="text" id="new-room-id" placeholder="생성할 방 ID 입력">
+            <button onclick="createRoom()">➕ 방 만들기</button>
+        </div>
+        <h3>참여 가능한 대국 방 목록</h3>
+        <div id="room-list"></div>
+    </div>
+
+    <!-- 3. 실시간 대국 전용 공간 -->
+    <div id="game-area" class="container">
+        <div class="main-layout">
+            <!-- 좌측: 가변형 다차원 체스판 영역 -->
+            <div class="board-side">
+                <div id="tabs"></div>
+                <div class="chess-board" id="board"></div>
+            </div>
+            <!-- 우측: 대국 현황 통제소 및 실시간 체크메이트 판정판 -->
+            <div class="panel-side">
+                <h2>🏁 대국 라이브 통제소</h2>
+                <div id="turn-display" style="font-size: 1.3em; font-weight:bold; color:#ffeb3b; margin-bottom:15px;">턴 불러오는 중...</div>
+                <div class="player-tag">⚪ 백(White): <span id="p-white">대기중</span></div>
+                <div class="player-tag" style="border-left-color:#e74c3c;">⚫ 흑(Black): <span id="p-black">대기중</span></div>
+                
+                <hr style="border-color:#444; margin:20px 0;">
+                <h3>🛡️ 실시간 체크메이트 집계</h3>
+                <div style="font-size: 1.8em; font-weight:bold; margin-bottom:10px;" id="total-score">0</div>
+                <div id="verdict-status" style="font-size:0.9em; color:#aaa; margin-bottom:15px;">계산 중...</div>
+                <div id="plane-scores"></div>
+                <br>
+                <button onclick="exitRoom()" style="background:#d9455f; width:100%;">🚪 로비로 나가기</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = null;
+        let ws = null;
+        let currentRoom = null;
+        let gameState = {};
+        let currentPlane = 0;
+        let selectedSquare = null;
+        let validMoves = [];
+
+        // 로그인 자격 검증 핸들러
+        async function checkAuth() {
+            const res = await fetch('/api/user');
+            const data = await res.json();
+            if (data.logged_in) {
+                currentUser = data.username;
+                document.getElementById("auth-panel").style.display = "none";
+                document.getElementById("lobby-panel").style.display = "block";
+                document.getElementById("user-display").innerText = currentUser;
+                loadRooms();
+            } else {
+                document.getElementById("auth-panel").style.display = "block";
+                document.getElementById("lobby-panel").style.display = "none";
+                document.getElementById("game-area").style.display = "none";
+            }
+        }
+
+        async function login() {
+            const username = document.getElementById("username").value;
+            const password = document.getElementById("password").value;
+            const res = await fetch('/api/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username, password})
+            });
+            if (res.ok) checkAuth();
+            else alert("로그인 정보가 틀렸습니다!");
+        }
+
+        async function logout() {
+            await fetch('/api/logout', {method: 'POST'});
+            if(ws) ws.close();
+            currentRoom = null;
+            checkAuth();
+        }
+
+        async function loadRooms() {
+            const res = await fetch('/api/rooms');
+            const data = await res.json();
+            const listDiv = document.getElementById("room-list");
+            listDiv.innerHTML = data.rooms.length === 0 ? "<p style='color:#777;'>진행 중인 방이 없습니다. 새로 만들어보세요!</p>" : "";
+            data.rooms.forEach(r => {
+                const item = document.createElement("div");
+                item.style = "background:#111; padding:12px; margin:8px; border-radius:6px; display:flex; justify-content:space-between; align-items:center;";
+                item.innerHTML = `<span><b>방 [${r.id}]</b> (백: ${r.w || '대기'} | 흑: ${r.b || '대기'})</span>
+                                  <button onclick="joinRoom('${r.id}')">참여 / 관전하기</button>`;
+                listDiv.appendChild(item);
+            });
+        }
+
+        async function createRoom() {
+            const rid = document.getElementById("new-room-id").value;
+            if(!rid) return;
+            const res = await fetch(`/api/room/create?room_id=${rid}`, {method: 'POST'});
+            if(res.ok) { joinRoom(rid); loadRooms(); }
+        }
+
+        // 웹소켓을 통한 방 참가 및 상호 동기화 셋업
+        function joinRoom(roomId) {
+            currentRoom = roomId;
+            document.getElementById("lobby-panel").style.display = "none";
+            document.getElementById("game-area").style.display = "block";
+            
+            // 웹소켓 백엔드 주소 연동
+            ws = new WebSocket(`ws://${window.location.host}/ws/game/${roomId}?user=${currentUser}`);
+            ws.onmessage = (event) => {
+                const msg = JSON.parse(event.data);
+                if (msg.type === "sync") {
+                    gameState = msg.data;
+                    renderTabs();
+                    renderBoard();
+                    updateUI();
+                } else if (msg.type === "moves") {
+                    validMoves = msg.moves;
+                    renderBoard();
+                }
+            };
+        }
+
+        function exitRoom() {
+            if(ws) ws.close();
+            document.getElementById("game-area").style.display = "none";
+            document.getElementById("lobby-panel").style.display = "block";
+            loadRooms();
+        }
+
+        // 대국 통제실 실시간 정보 업데이트
+        function updateUI() {
+            const isMyTurn = (gameState.turn === "W" && gameState.white_player === currentUser) || 
+                             (gameState.turn === "B" && gameState.black_player === currentUser);
+            document.getElementById("turn-display").innerText = `현재 턴: ${gameState.turn === "W" ? "백(White)" : "흑(Black)"} ${isMyTurn ? " [내 차례!]" : " [상대 대기]"}`;
+            document.getElementById("p-white").innerText = gameState.white_player || "대기중...";
+            document.getElementById("p-black").innerText = gameState.black_player || "대기중...";
+            
+            const vd = gameState.verdict_data;
+            document.getElementById("total-score").innerText = vd.total > 0 ? `+${vd.total}` : vd.total;
+            document.getElementById("verdict-status").innerText = `종합 판정: ${vd.verdict}`;
+            
+            const scDiv = document.getElementById("plane-scores");
+            scDiv.innerHTML = "";
+            for(let p=0; p<gameState.opened_planes; p++) {             // 평면별 세부 스코어 라벨 출력부 복원
+            const scDiv = document.getElementById("plane-scores");
+            scDiv.innerHTML = "";
+            for(let p=0; p<gameState.opened_planes; p++) {
+                const box = document.createElement("div");
+                box.className = "sc-box";
+                const s = vd.scores[p];
+                box.style.background = s > 0 ? "#27ae60" : (s < 0 ? "#c0392b" : "#444");
+                box.innerText = `평면${p+1}: ${s > 0 ? "백승(+1)" : (s < 0 ? "흑승(-1)" : "진행중")}`;
+                scDiv.appendChild(box);
+            }
+        }
+
+        // 평면 가변 확장 상태 인터페이스 생성 (착수 완료 평면 체크 표시)
+        function renderTabs() {
+            const tabs = document.getElementById("tabs");
+            tabs.innerHTML = "";
+            for(let i=0; i<12; i++) {
+                const btn = document.createElement("button");
+                btn.className = "tab-btn";
+                if(i >= gameState.opened_planes) {
+                    btn.innerText = `🔒 평면 ${i+1}`; btn.classList.add("locked");
+                } else {
+                    const done = gameState.turn_history[i] ? " ✓" : "";
+                    btn.innerText = `평면 ${i+1}${done}`;
+                    if(i === currentPlane) btn.classList.add("active");
+                    if(gameState.turn_history[i]) btn.classList.add("done");
+                    btn.onclick = () => { 
+                        currentPlane = i; 
+                        validMoves = []; 
+                        selectedSquare = null; 
+                        renderTabs(); 
+                        renderBoard(); 
+                    };
+                }
+                tabs.appendChild(btn);
+            }
+        }
+
+        function renderBoard() {
+            const board = document.getElementById("board");
+            board.innerHTML = "";
+            const matrix = gameState.boards[currentPlane];
+
+            // 흑백 기물 시점 8x8 고정 출력
+            for(let r=7; r>=0; r--) {
+                for(let c=0; c<8; c++) {
+                    const cell = document.createElement("div");
+                    cell.className = `cell ${(r+c)%2===0 ? 'light' : 'dark'}`;
+                    
+                    const p = matrix[r][c];
+                    if(p) {
+                        const info = p.split("_");
+                        cell.innerHTML = `<div class='piece' style='color:${info[0]==='W'?'#fff':'#111'}'>${info[0]}<br>${info[1]}</div>`;
+                    }
+
+                    if(selectedSquare && selectedSquare.r === r && selectedSquare.c === c) cell.classList.add("selected");
+                    
+                    const activeMove = validMoves.find(m => m.p === currentPlane && m.r === r && m.c === c);
+                    if(activeMove) {
+                        if(activeMove.action === "forge") cell.classList.add("forge-highlight");
+                        else cell.classList.add("highlight");
+                    }
+
+                    cell.onclick = () => handleSquareClick(r, c);
+                    board.appendChild(cell);
+                }
+            }
+        }
+
+        function handleSquareClick(r, c) {
+            const activeMove = validMoves.find(m => m.p === currentPlane && m.r === r && m.c === c);
+            if(activeMove) {
+                // 백엔드로 웹소켓 이동 명령 패킷 전달
+                ws.send(JSON.stringify({
+                    type: "move", 
+                    fp: selectedSquare.p, 
+                    fr: selectedSquare.r, 
+                    fc: selectedSquare.c,
+                    tp: activeMove.p, 
+                    tr: activeMove.r, 
+                    tc: activeMove.c, 
+                    action: activeMove.action
+                }));
+                selectedSquare = null; 
+                validMoves = [];
+                return;
+            }
+
+            const p = gameState.boards[currentPlane][r][c];
+            if(p && p.startswith(gameState.turn)) {
+                selectedSquare = {p: currentPlane, r, c};
+                ws.send(JSON.stringify({type: "get_moves", p: currentPlane, r, c}));
+            } else {
+                selectedSquare = null; 
+                validMoves = []; 
+                renderBoard();
+            }
+        }
+
+        window.onload = checkAuth;
+    </script>
+</body>
+</html>
+
