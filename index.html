@@ -34,12 +34,14 @@
 <body>
 
     <div id="auth-panel">
-        <h2>🔐 12평면체스 대국소 로그인</h2>
-        <p style="font-size: 0.85em; color: #aaa;">테스트 계정: GJKJKA (비번: chess12) 또는 player1, player2 (비번: 1234)</p>
+        <h2>🔐 12평면체스 대국소 로그인 / 가입</h2>
+        <p style="font-size: 0.85em; color: #aaa;">원하는 정보로 가입하거나 기본 계정(GJKJKA / chess12)을 이용하세요.</p>
         <input type="text" id="username" placeholder="아이디">
         <input type="password" id="password" placeholder="비밀번호">
         <button onclick="login()">로그인</button>
+        <button onclick="register()" style="background:#43b581;">회원가입</button>
     </div>
+
 
     <div id="lobby-panel" style="display:none;">
         <h2>🌐 대국 로비 시스템</h2>
@@ -99,10 +101,37 @@
                 document.getElementById("game-area").style.display = "none";
             }
         }
+        async function register() {
+            const username = document.getElementById("username").value.trim();
+            const password = document.getElementById("password").value.trim();
+            
+            if(!username || !password) {
+                alert("아이디와 비밀번호를 채워주세요.");
+                return;
+            }
+            
+            try {
+                const res = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username, password})
+                });
+                
+                const data = await res.json();
+                if (res.ok) {
+                    alert("회원가입 완료! 이제 로그인 버튼을 눌러 접속하세요.");
+                } else {
+                    alert("회원가입 실패: " + (data.detail || "오류가 발생했습니다."));
+                }
+            } catch (err) {
+                alert("서버 통신 실패!");
+            }
+        }
 
         async function login() {
-            const username = document.getElementById("username").value;
-            const password = document.getElementById("password").value;
+            const username = document.getElementById("username").value.trim();
+            const password = document.getElementById("password").value.trim();
+            
             try {
                 const res = await fetch('/api/login', {
                     method: 'POST',
@@ -117,13 +146,13 @@
                     document.getElementById("user-display").innerText = currentUser;
                     loadRooms();
                 } else {
-                    alert("로그인 정보가 틀렸습니다!");
+                    const errData = await res.json();
+                    alert("로그인 실패: " + (errData.detail || "정보를 확인하세요."));
                 }
             } catch (err) {
                 alert("서버 연결 실패!");
             }
         }
-
         async function logout() {
             await fetch('/api/logout', {method: 'POST'});
             if(ws) ws.close();
