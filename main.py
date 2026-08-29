@@ -229,8 +229,27 @@ async def broadcast_room(room_id: str):
 class LoginModel(BaseModel):
     username: str
     password: str
+
+class AuthModel(BaseModel):
+    username: str
+    password: str
+
+@app.post("/api/register")
+def register(data: AuthModel):
+    username = data.username.strip()
+    password = data.password.strip()
+    
+    if not username or not password:
+        raise HTTPException(status_code=400, detail="아이디와 비밀번호를 올바르게 입력하세요.")
+    if username in USER_DB:
+        raise HTTPException(status_code=400, detail="이미 존재하는 아이디입니다.")
+        
+    # 메모리 데이터베이스에 계정 실시간 누적 추가
+    USER_DB[username] = password
+    return {"status": "success", "message": "회원가입 성공!"}
+
 @app.post("/api/login")
-def login(data: LoginModel, response: Response):
+def login(data: AuthModel, response: Response):
     if USER_DB.get(data.username) == data.password:
         token = f"token_{data.username}"
         ACTIVE_SESSIONS[token] = data.username
