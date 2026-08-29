@@ -42,7 +42,6 @@
         <button onclick="register()" style="background:#43b581;">회원가입</button>
     </div>
 
-
     <div id="lobby-panel" style="display:none;">
         <h2>🌐 대국 로비 시스템</h2>
         <p>환영합니다, <span id="user-display" style="color:#5865f2; font-weight:bold;"></span>님! | <button onclick="logout()" style="padding:4px 10px; background:#444;">로그아웃</button></p>
@@ -93,6 +92,7 @@
                 currentUser = data.username;
                 document.getElementById("auth-panel").style.display = "none";
                 document.getElementById("lobby-panel").style.display = "block";
+                document.getElementById("game-area").style.display = "none"; // 방 아웃라인 히든 기본화
                 document.getElementById("user-display").innerText = currentUser;
                 loadRooms();
             } else {
@@ -101,40 +101,30 @@
                 document.getElementById("game-area").style.display = "none";
             }
         }
+
         async function register() {
             const username = document.getElementById("username").value.trim();
             const password = document.getElementById("password").value.trim();
-            
-            if(!username || !password) {
-                alert("아이디와 비밀번호를 채워주세요.");
-                return;
-            }
-            
+            if(!username || !password) { alert("아이디와 비밀번호를 채워주세요."); return; }
             try {
                 const res = await fetch('/api/register', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({username, password})
                 });
-                
-                // 💡 기존의 위치 오류가 있던 레스폰스 파싱 로직을 안전하게 정비
                 if (res.ok) {
                     alert("회원가입 완료! 이제 로그인 버튼을 눌러 접속하세요.");
-                    // 가입 성공 시 입력창 초기화 및 편의성 갱신
                     document.getElementById("password").value = "";
                 } else {
                     const errorData = await res.json();
-                    alert("회원가입 실패: " + (errorData.detail || "이미 존재하는 아이디거나 규격 오류입니다."));
+                    alert("회원가입 실패: " + (errorData.detail || "오류 발생"));
                 }
-            } catch (err) {
-                console.error("회원가입 통신 예외 발생:", err);
-                alert("대국소 서버와 통신하는 도중 예외가 발생했습니다.");
-            }
+            } catch (err) { alert("서버 통신 실패!"); }
         }
+
         async function login() {
             const username = document.getElementById("username").value.trim();
             const password = document.getElementById("password").value.trim();
-            
             try {
                 const res = await fetch('/api/login', {
                     method: 'POST',
@@ -148,14 +138,10 @@
                     document.getElementById("lobby-panel").style.display = "block";
                     document.getElementById("user-display").innerText = currentUser;
                     loadRooms();
-                } else {
-                    const errData = await res.json();
-                    alert("로그인 실패: " + (errData.detail || "정보를 확인하세요."));
-                }
-            } catch (err) {
-                alert("서버 연결 실패!");
-            }
+                } else { alert("로그인 정보가 틀렸습니다!"); }
+            } catch (err) { alert("서버 연결 실패!"); }
         }
+
         async function logout() {
             await fetch('/api/logout', {method: 'POST'});
             if(ws) ws.close();
@@ -186,6 +172,7 @@
 
         function joinRoom(roomId) {
             currentRoom = roomId;
+            // 🔓 방 입장 시 로비를 확실하게 끄고 대국판 컨테이너를 강제 표시(화면 출력 버그 완전 해소)
             document.getElementById("lobby-panel").style.display = "none";
             document.getElementById("game-area").style.display = "block";
             
@@ -198,7 +185,7 @@
                     gameState = msg.data;
                     renderTabs();
                     renderBoard();
-                    updateUI();
+                                        updateUI();
                 } else if (msg.type === "moves") {
                     validMoves = msg.moves;
                     renderBoard();
@@ -213,6 +200,7 @@
             loadRooms();
         }
 
+        // 실시간 전광판 및 대국 라이브 상황판 데이터 매핑
         function updateUI() {
             const isMyTurn = (gameState.turn === "W" && gameState.white_player === currentUser) || 
                              (gameState.turn === "B" && gameState.black_player === currentUser);
@@ -221,9 +209,6 @@
             document.getElementById("p-black").innerText = gameState.black_player || "대기중...";
             
             const vd = gameState.verdict_data;
-            // -------------------------------------------------------------
-            // [정밀 복원 구간 시작] gameState.verdict_data 내부 파싱 및 렌더링
-            // -------------------------------------------------------------
             document.getElementById("total-score").innerText = vd.total > 0 ? `+${vd.total}` : vd.total;
             document.getElementById("verdict-status").innerText = `종합 판정: ${vd.verdict}`;
             
@@ -233,57 +218,43 @@
                 const box = document.createElement("div");
                 box.className = "sc-box";
                 const s = vd.scores[p];
-                
-                // 백 승리는 초록색(+1), 흑 승리는 빨간색(-1), 진행 중은 회색(0) 처리
                 if (s > 0) {
-                    box.style.background = "#27ae60";
-                    box.innerText = `평면 ${p+1}: 백메이트 (+1)`;
+                    box.style.background = "#27ae60"; box.innerText = `평면 ${p+1}: 백메이트 (+1)`;
                 } else if (s < 0) {
-                    box.style.background = "#c0392b";
-                    box.innerText = `평면 ${p+1}: 흑메이트 (-1)`;
+                    box.style.background = "#c0392b"; box.innerText = `평면 ${p+1}: 흑메이트 (-1)`;
                 } else {
-                    box.style.background = "#444";
-                    box.innerText = `평면 ${p+1}: 대국 진행중 (0)`;
+                    box.style.background = "#444"; box.innerText = `평면 ${p+1}: 대국 진행중 (0)`;
                 }
                 scDiv.appendChild(box);
             }
         }
 
-        // 12평면 확장 탭 생성 시스템 (해당 턴에 이미 둔 평면은 체크 표시 추가)
+        // 가변형 평면 상단 선택 탭 생성기
         function renderTabs() {
             const tabs = document.getElementById("tabs");
             tabs.innerHTML = "";
             for(let i=0; i<12; i++) {
                 const btn = document.createElement("button");
                 btn.className = "tab-btn";
-                
                 if(i >= gameState.opened_planes) {
-                    btn.innerText = `🔒 평면 ${i+1}`; 
-                    btn.classList.add("locked");
+                    btn.innerText = `🔒 평면 ${i+1}`; btn.classList.add("locked");
                 } else {
-                    const doneMark = gameState.turn_history[i] ? " ✓" : "";
-                    btn.innerText = `평면 ${i+1}${doneMark}`;
-                    
+                    const done = gameState.turn_history[i] ? " ✓" : "";
+                    btn.innerText = `평면 ${i+1}${done}`;
                     if(i === currentPlane) btn.classList.add("active");
                     if(gameState.turn_history[i]) btn.classList.add("done");
-                    
-                    btn.onclick = () => { 
-                        currentPlane = i; 
-                        validMoves = []; 
-                        selectedSquare = null; 
-                        renderTabs(); 
-                        renderBoard(); 
-                    };
+                    btn.onclick = () => { currentPlane = i; validMoves = []; selectedSquare = null; renderTabs(); renderBoard(); };
                 }
                 tabs.appendChild(btn);
             }
         }
 
-        // 8x8 고차원 그래픽 격자 렌더러
+        // 8x8 다차원 체스판 그래픽 렌더러
         function renderBoard() {
             const board = document.getElementById("board");
             board.innerHTML = "";
             const matrix = gameState.boards[currentPlane];
+            if (!matrix) return;
 
             for(let r=7; r>=0; r--) {
                 for(let c=0; c<8; c++) {
@@ -292,16 +263,13 @@
                     
                     const p = matrix[r][c];
                     if(p) {
-                        const info = p.split("_"); // W_King, B_Dragon 등 파싱
+                        const info = p.split("_");
                         const teamColor = info[0] === 'W' ? '#ffffff' : '#111111';
                         cell.innerHTML = `<div class='piece' style='color:${teamColor}'>${info[0]}<br>${info[1]}</div>`;
                     }
 
-                    if(selectedSquare && selectedSquare.r === r && selectedSquare.c === c) {
-                        cell.classList.add("selected");
-                    }
+                    if(selectedSquare && selectedSquare.r === r && selectedSquare.c === c) cell.classList.add("selected");
                     
-                    // 이동 가능한 경로 주황색 마킹, 평면 개척은 보라색 마킹
                     const activeMove = validMoves.find(m => m.p === currentPlane && m.r === r && m.c === c);
                     if(activeMove) {
                         if(activeMove.action === "forge") cell.classList.add("forge-highlight");
@@ -314,23 +282,15 @@
             }
         }
 
-        // 마우스 입력 좌표 수집 및 백엔드 패킷 전송기
+        // 클릭 이벤트 핸들러 및 패킷 전송 파트
         function handleSquareClick(r, c) {
             const activeMove = validMoves.find(m => m.p === currentPlane && m.r === r && m.c === c);
             if(activeMove) {
-                // 실시간 웹소켓 채널을 통해 이동 프로토콜 데이터 전송
                 ws.send(JSON.stringify({
-                    type: "move", 
-                    fp: selectedSquare.p, 
-                    fr: selectedSquare.r, 
-                    fc: selectedSquare.c,
-                    tp: activeMove.p, 
-                    tr: activeMove.r, 
-                    tc: activeMove.c, 
-                    action: activeMove.action
+                    type: "move", fp: selectedSquare.p, fr: selectedSquare.r, fc: selectedSquare.c,
+                    tp: activeMove.p, tr: activeMove.r, tc: activeMove.c, action: activeMove.action
                 }));
-                selectedSquare = null; 
-                validMoves = [];
+                selectedSquare = null; validMoves = [];
                 return;
             }
 
@@ -339,15 +299,11 @@
                 selectedSquare = {p: currentPlane, r, c};
                 ws.send(JSON.stringify({type: "get_moves", p: currentPlane, r, c}));
             } else {
-                selectedSquare = null; 
-                validMoves = []; 
-                renderBoard();
+                selectedSquare = null; validMoves = []; renderBoard();
             }
         }
 
-        // 브라우저 최초 구동 시 세션 확인 실행
         window.onload = checkAuth;
     </script>
 </body>
 </html>
-
