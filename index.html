@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>12평면체스 온라인</title>
+    <title>GJKJKA 12평면체스 온라인</title>
     <style>
         body { font-family: 'Malgun Gothic', sans-serif; background: #1e1e24; color: #fff; margin: 0; padding: 20px; }
         .container { max-width: 1100px; margin: 0 auto; display: flex; gap: 20px; }
@@ -33,7 +33,6 @@
 </head>
 <body>
 
-    <!-- 1. 로그인 세션 인증 패널 -->
     <div id="auth-panel">
         <h2>🔐 12평면체스 대국소 로그인</h2>
         <p style="font-size: 0.85em; color: #aaa;">테스트 계정: GJKJKA (비번: chess12) 또는 player1, player2 (비번: 1234)</p>
@@ -42,7 +41,6 @@
         <button onclick="login()">로그인</button>
     </div>
 
-    <!-- 2. 온라인 멀티플레이 대국 로비 패널 -->
     <div id="lobby-panel" style="display:none;">
         <h2>🌐 대국 로비 시스템</h2>
         <p>환영합니다, <span id="user-display" style="color:#5865f2; font-weight:bold;"></span>님! | <button onclick="logout()" style="padding:4px 10px; background:#444;">로그아웃</button></p>
@@ -54,15 +52,12 @@
         <div id="room-list"></div>
     </div>
 
-    <!-- 3. 실시간 대국 전용 공간 -->
     <div id="game-area" class="container">
         <div class="main-layout">
-            <!-- 좌측: 가변형 다차원 체스판 영역 -->
             <div class="board-side">
                 <div id="tabs"></div>
                 <div class="chess-board" id="board"></div>
             </div>
-            <!-- 우측: 대국 현황 통제소 및 실시간 체크메이트 판정판 -->
             <div class="panel-side">
                 <h2>🏁 대국 라이브 통제소</h2>
                 <div id="turn-display" style="font-size: 1.3em; font-weight:bold; color:#ffeb3b; margin-bottom:15px;">턴 불러오는 중...</div>
@@ -89,7 +84,6 @@
         let selectedSquare = null;
         let validMoves = [];
 
-        // 로그인 자격 검증 핸들러
         async function checkAuth() {
             const res = await fetch('/api/user');
             const data = await res.json();
@@ -109,13 +103,25 @@
         async function login() {
             const username = document.getElementById("username").value;
             const password = document.getElementById("password").value;
-            const res = await fetch('/api/login', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({username, password})
-            });
-            if (res.ok) checkAuth();
-            else alert("로그인 정보가 틀렸습니다!");
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username, password})
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    currentUser = data.username;
+                    document.getElementById("auth-panel").style.display = "none";
+                    document.getElementById("lobby-panel").style.display = "block";
+                    document.getElementById("user-display").innerText = currentUser;
+                    loadRooms();
+                } else {
+                    alert("로그인 정보가 틀렸습니다!");
+                }
+            } catch (err) {
+                alert("서버 연결 실패!");
+            }
         }
 
         async function logout() {
@@ -129,7 +135,7 @@
             const res = await fetch('/api/rooms');
             const data = await res.json();
             const listDiv = document.getElementById("room-list");
-            listDiv.innerHTML = data.rooms.length === 0 ? "<p style='color:#777;'>진행 중인 방이 없습니다. 새로 만들어보세요!</p>" : "";
+            listDiv.innerHTML = data.rooms.length === 0 ? "<p style='color:#777;'>진행 중인 방이 없습니다.</p>" : "";
             data.rooms.forEach(r => {
                 const item = document.createElement("div");
                 item.style = "background:#111; padding:12px; margin:8px; border-radius:6px; display:flex; justify-content:space-between; align-items:center;";
@@ -146,14 +152,14 @@
             if(res.ok) { joinRoom(rid); loadRooms(); }
         }
 
-        // 웹소켓을 통한 방 참가 및 상호 동기화 셋업
         function joinRoom(roomId) {
             currentRoom = roomId;
             document.getElementById("lobby-panel").style.display = "none";
             document.getElementById("game-area").style.display = "block";
             
-            // 웹소켓 백엔드 주소 연동
-            ws = new WebSocket(`ws://${window.location.host}/ws/game/${roomId}?user=${currentUser}`);
+            const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+            ws = new WebSocket(`${protocol}//${window.location.host}/ws/game/${roomId}?user=${currentUser}`);
+            
             ws.onmessage = (event) => {
                 const msg = JSON.parse(event.data);
                 if (msg.type === "sync") {
@@ -175,7 +181,6 @@
             loadRooms();
         }
 
-        // 대국 통제실 실시간 정보 업데이트
         function updateUI() {
             const isMyTurn = (gameState.turn === "W" && gameState.white_player === currentUser) || 
                              (gameState.turn === "B" && gameState.black_player === currentUser);
@@ -184,38 +189,52 @@
             document.getElementById("p-black").innerText = gameState.black_player || "대기중...";
             
             const vd = gameState.verdict_data;
+            // -------------------------------------------------------------
+            // [정밀 복원 구간 시작] gameState.verdict_data 내부 파싱 및 렌더링
+            // -------------------------------------------------------------
             document.getElementById("total-score").innerText = vd.total > 0 ? `+${vd.total}` : vd.total;
             document.getElementById("verdict-status").innerText = `종합 판정: ${vd.verdict}`;
             
-            const scDiv = document.getElementById("plane-scores");
-            scDiv.innerHTML = "";
-            for(let p=0; p<gameState.opened_planes; p++) {             // 평면별 세부 스코어 라벨 출력부 복원
             const scDiv = document.getElementById("plane-scores");
             scDiv.innerHTML = "";
             for(let p=0; p<gameState.opened_planes; p++) {
                 const box = document.createElement("div");
                 box.className = "sc-box";
                 const s = vd.scores[p];
-                box.style.background = s > 0 ? "#27ae60" : (s < 0 ? "#c0392b" : "#444");
-                box.innerText = `평면${p+1}: ${s > 0 ? "백승(+1)" : (s < 0 ? "흑승(-1)" : "진행중")}`;
+                
+                // 백 승리는 초록색(+1), 흑 승리는 빨간색(-1), 진행 중은 회색(0) 처리
+                if (s > 0) {
+                    box.style.background = "#27ae60";
+                    box.innerText = `평면 ${p+1}: 백메이트 (+1)`;
+                } else if (s < 0) {
+                    box.style.background = "#c0392b";
+                    box.innerText = `평면 ${p+1}: 흑메이트 (-1)`;
+                } else {
+                    box.style.background = "#444";
+                    box.innerText = `평면 ${p+1}: 대국 진행중 (0)`;
+                }
                 scDiv.appendChild(box);
             }
         }
 
-        // 평면 가변 확장 상태 인터페이스 생성 (착수 완료 평면 체크 표시)
+        // 12평면 확장 탭 생성 시스템 (해당 턴에 이미 둔 평면은 체크 표시 추가)
         function renderTabs() {
             const tabs = document.getElementById("tabs");
             tabs.innerHTML = "";
             for(let i=0; i<12; i++) {
                 const btn = document.createElement("button");
                 btn.className = "tab-btn";
+                
                 if(i >= gameState.opened_planes) {
-                    btn.innerText = `🔒 평면 ${i+1}`; btn.classList.add("locked");
+                    btn.innerText = `🔒 평면 ${i+1}`; 
+                    btn.classList.add("locked");
                 } else {
-                    const done = gameState.turn_history[i] ? " ✓" : "";
-                    btn.innerText = `평면 ${i+1}${done}`;
+                    const doneMark = gameState.turn_history[i] ? " ✓" : "";
+                    btn.innerText = `평면 ${i+1}${doneMark}`;
+                    
                     if(i === currentPlane) btn.classList.add("active");
                     if(gameState.turn_history[i]) btn.classList.add("done");
+                    
                     btn.onclick = () => { 
                         currentPlane = i; 
                         validMoves = []; 
@@ -228,12 +247,12 @@
             }
         }
 
+        // 8x8 고차원 그래픽 격자 렌더러
         function renderBoard() {
             const board = document.getElementById("board");
             board.innerHTML = "";
             const matrix = gameState.boards[currentPlane];
 
-            // 흑백 기물 시점 8x8 고정 출력
             for(let r=7; r>=0; r--) {
                 for(let c=0; c<8; c++) {
                     const cell = document.createElement("div");
@@ -241,12 +260,16 @@
                     
                     const p = matrix[r][c];
                     if(p) {
-                        const info = p.split("_");
-                        cell.innerHTML = `<div class='piece' style='color:${info[0]==='W'?'#fff':'#111'}'>${info[0]}<br>${info[1]}</div>`;
+                        const info = p.split("_"); // W_King, B_Dragon 등 파싱
+                        const teamColor = info[0] === 'W' ? '#ffffff' : '#111111';
+                        cell.innerHTML = `<div class='piece' style='color:${teamColor}'>${info[0]}<br>${info[1]}</div>`;
                     }
 
-                    if(selectedSquare && selectedSquare.r === r && selectedSquare.c === c) cell.classList.add("selected");
+                    if(selectedSquare && selectedSquare.r === r && selectedSquare.c === c) {
+                        cell.classList.add("selected");
+                    }
                     
+                    // 이동 가능한 경로 주황색 마킹, 평면 개척은 보라색 마킹
                     const activeMove = validMoves.find(m => m.p === currentPlane && m.r === r && m.c === c);
                     if(activeMove) {
                         if(activeMove.action === "forge") cell.classList.add("forge-highlight");
@@ -259,10 +282,11 @@
             }
         }
 
+        // 마우스 입력 좌표 수집 및 백엔드 패킷 전송기
         function handleSquareClick(r, c) {
             const activeMove = validMoves.find(m => m.p === currentPlane && m.r === r && m.c === c);
             if(activeMove) {
-                // 백엔드로 웹소켓 이동 명령 패킷 전달
+                // 실시간 웹소켓 채널을 통해 이동 프로토콜 데이터 전송
                 ws.send(JSON.stringify({
                     type: "move", 
                     fp: selectedSquare.p, 
@@ -279,7 +303,7 @@
             }
 
             const p = gameState.boards[currentPlane][r][c];
-            if(p && p.startswith(gameState.turn)) {
+            if(p && p.startsWith(gameState.turn)) {
                 selectedSquare = {p: currentPlane, r, c};
                 ws.send(JSON.stringify({type: "get_moves", p: currentPlane, r, c}));
             } else {
@@ -289,6 +313,7 @@
             }
         }
 
+        // 브라우저 최초 구동 시 세션 확인 실행
         window.onload = checkAuth;
     </script>
 </body>
