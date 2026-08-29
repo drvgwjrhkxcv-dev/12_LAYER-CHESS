@@ -248,10 +248,25 @@
 
         function renderBoard() {
             const board = document.getElementById("board");
+            if (!board) return;
             board.innerHTML = "";
-            const matrix = gameState.boards[currentPlane];
-            if (!matrix) return;
+            
+            // 현재 활성화된 평면 데이터 가져오기
+            const matrix = gameState.boards ? gameState.boards[currentPlane] : null;
+            
+            // 💡 데이터가 아직 안 넘어왔거나 비어있으면 8x8 빈 보드라도 강제로 그리도록 안전장치 마련
+            if (!matrix) {
+                for(let r=7; r>=0; r--) {
+                    for(let c=0; c<8; c++) {
+                        const cell = document.createElement("div");
+                        cell.className = `cell ${(r+c)%2===0 ? 'light' : 'dark'}`;
+                        board.appendChild(cell);
+                    }
+                }
+                return;
+            }
 
+            // 백그라운드 8x8 고정 출력 (7행부터 0행까지 역순)
             for(let r=7; r>=0; r--) {
                 for(let c=0; c<8; c++) {
                     const cell = document.createElement("div");
@@ -259,13 +274,20 @@
                     
                     const p = matrix[r][c];
                     if(p) {
-                        const info = p.split("_");
-                        const teamColor = info[0] === 'W' ? '#ffffff' : '#111111';
-                        cell.innerHTML = `<div class='piece' style='color:${teamColor}'>${info[0]}<br>${info[1]}</div>`;
+                        // 💡 대괄호 인덱스 유실 버그 완벽 수정 (info[0]=팀색상, info[1]=기물명)
+                        const info = p.split("_"); 
+                        if(info.length >= 2) {
+                            const teamColor = info[0] === 'W' ? '#ffffff' : '#111111';
+                            cell.innerHTML = `<div class='piece' style='color:${teamColor}'>${info[0]}<br>${info[1]}</div>`;
+                        }
                     }
 
-                    if(selectedSquare && selectedSquare.r === r && selectedSquare.c === c) cell.classList.add("selected");
+                    // 현재 유저가 선택한 출발 칸 노란색 하이라이트
+                    if(selectedSquare && selectedSquare.r === r && selectedSquare.c === c) {
+                        cell.classList.add("selected");
+                    }
                     
+                    // 유효 행마법 경로 주황색/보라색 매핑
                     const activeMove = validMoves.find(m => m.p === currentPlane && m.r === r && m.c === c);
                     if(activeMove) {
                         if(activeMove.action === "forge") cell.classList.add("forge-highlight");
