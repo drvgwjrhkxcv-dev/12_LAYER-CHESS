@@ -92,7 +92,7 @@
                 currentUser = data.username;
                 document.getElementById("auth-panel").style.display = "none";
                 document.getElementById("lobby-panel").style.display = "block";
-                document.getElementById("game-area").style.display = "none"; // 방 아웃라인 히든 기본화
+                document.getElementById("game-area").style.display = "none";
                 document.getElementById("user-display").innerText = currentUser;
                 loadRooms();
             } else {
@@ -172,7 +172,6 @@
 
         function joinRoom(roomId) {
             currentRoom = roomId;
-            // 🔓 방 입장 시 로비를 확실하게 끄고 대국판 컨테이너를 강제 표시(화면 출력 버그 완전 해소)
             document.getElementById("lobby-panel").style.display = "none";
             document.getElementById("game-area").style.display = "block";
             
@@ -185,9 +184,9 @@
                     gameState = msg.data;
                     renderTabs();
                     renderBoard();
-                                        updateUI();
+                    updateUI();
                 } else if (msg.type === "moves") {
-                    validMoves = msg.moves;
+                validMoves = msg.moves;
                     renderBoard();
                 }
             };
@@ -200,7 +199,6 @@
             loadRooms();
         }
 
-        // 실시간 전광판 및 대국 라이브 상황판 데이터 매핑
         function updateUI() {
             const isMyTurn = (gameState.turn === "W" && gameState.white_player === currentUser) || 
                              (gameState.turn === "B" && gameState.black_player === currentUser);
@@ -229,7 +227,6 @@
             }
         }
 
-        // 가변형 평면 상단 선택 탭 생성기
         function renderTabs() {
             const tabs = document.getElementById("tabs");
             tabs.innerHTML = "";
@@ -249,7 +246,6 @@
             }
         }
 
-        // 8x8 다차원 체스판 그래픽 렌더러
         function renderBoard() {
             const board = document.getElementById("board");
             board.innerHTML = "";
@@ -282,7 +278,6 @@
             }
         }
 
-        // 클릭 이벤트 핸들러 및 패킷 전송 파트
         function handleSquareClick(r, c) {
             const activeMove = validMoves.find(m => m.p === currentPlane && m.r === r && m.c === c);
             if(activeMove) {
