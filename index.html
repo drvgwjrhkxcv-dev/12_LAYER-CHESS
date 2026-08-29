@@ -117,17 +117,20 @@
                     body: JSON.stringify({username, password})
                 });
                 
-                const data = await res.json();
+                // 💡 기존의 위치 오류가 있던 레스폰스 파싱 로직을 안전하게 정비
                 if (res.ok) {
                     alert("회원가입 완료! 이제 로그인 버튼을 눌러 접속하세요.");
+                    // 가입 성공 시 입력창 초기화 및 편의성 갱신
+                    document.getElementById("password").value = "";
                 } else {
-                    alert("회원가입 실패: " + (data.detail || "오류가 발생했습니다."));
+                    const errorData = await res.json();
+                    alert("회원가입 실패: " + (errorData.detail || "이미 존재하는 아이디거나 규격 오류입니다."));
                 }
             } catch (err) {
-                alert("서버 통신 실패!");
+                console.error("회원가입 통신 예외 발생:", err);
+                alert("대국소 서버와 통신하는 도중 예외가 발생했습니다.");
             }
         }
-
         async function login() {
             const username = document.getElementById("username").value.trim();
             const password = document.getElementById("password").value.trim();
